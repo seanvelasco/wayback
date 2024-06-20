@@ -5,11 +5,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 )
 
-var c = make(chan []byte)
+//var c = make(chan []byte)
 
 func validateUrl(unvalidated string) (string, error) {
 	validated, err := url.ParseRequestURI(unvalidated)
@@ -29,28 +28,27 @@ func fetchResource(url string) []byte {
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Printf("client: could not create request: %s\n", err)
-		os.Exit(1)
 	}
-	fmt.Printf("client: got response!\n")
-	fmt.Printf("client: status code: %d\n", res.StatusCode)
+	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		fmt.Printf("client: could not read response body: %s\n", err)
-		os.Exit(1)
 	}
-	c <- body
+	//c <- body
 	return body
 }
 
 func handleLanding(w http.ResponseWriter, r *http.Request) {
+
+	//w.Header().Set("Content-Type", "text/html; charset=utf-8")
 }
 
 func handleAppendOrRetrieveResource(w http.ResponseWriter, r *http.Request) {
 	resourceUrl := r.PathValue("resource")
 	validUrl, err := validateUrl(resourceUrl)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
 	}
 	go fetchResource(validUrl)
 
@@ -63,11 +61,11 @@ func handleRetrieveResource(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	go func() {
-		for data := range c {
-			fmt.Print(string(data))
-		}
-	}()
+	//go func() {
+	//	for data := range c {
+	//		fmt.Print(string(data))
+	//	}
+	//}()
 
 	server := &http.Server{
 		Addr: ":8000",
