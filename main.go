@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
-
-//var c = make(chan []byte)
 
 func validateUrl(unvalidated string) (string, error) {
 	validated, err := url.ParseRequestURI(unvalidated)
@@ -24,19 +25,29 @@ func validateUrl(unvalidated string) (string, error) {
 	return validated.String(), nil
 }
 
-func fetchResource(url string) []byte {
+func archiveResource(id string, resource io.Reader) error {
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	fmt.Println(timestamp)
+	// save to db
+	// save to blob storage
+	return nil
+}
+
+func fetchResource(url string) error {
+
 	res, err := http.Get(url)
+
 	if err != nil {
-		fmt.Printf("client: could not create request: %s\n", err)
+		return fmt.Errorf("failed to fetch resource: %w", err)
 	}
+
 	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Printf("client: could not read response body: %s\n", err)
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("invalid status code: %d", res.StatusCode)
 	}
-	//c <- body
-	return body
+
+	return archiveResource(url, res.Body)
 }
 
 func handleLanding(w http.ResponseWriter, r *http.Request) {
@@ -49,23 +60,23 @@ func handleAppendOrRetrieveResource(w http.ResponseWriter, r *http.Request) {
 	validUrl, err := validateUrl(resourceUrl)
 	if err != nil {
 		http.Error(w, "Invalid URL", http.StatusBadRequest)
+		return
 	}
-	go fetchResource(validUrl)
+	go func() {
+		err := fetchResource(validUrl)
+		if err != nil {
+			log.Printf("Error fetching resource: %v", err)
+		}
+	}()
 
-	w.Write([]byte("Resource " + validUrl + " was fetched successfully."))
-
+	w.WriteHeader(http.StatusAccepted)
+	//w.Write([]byte("Resource " + validUrl + " was fetched successfully."))
 }
 
 func handleRetrieveResource(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-
-	//go func() {
-	//	for data := range c {
-	//		fmt.Print(string(data))
-	//	}
-	//}()
 
 	server := &http.Server{
 		Addr: ":8000",
@@ -74,9 +85,7 @@ func main() {
 	http.HandleFunc("/{timestamp}/{resource}", handleRetrieveResource)
 	http.HandleFunc("/{resource}", handleAppendOrRetrieveResource)
 
-	err := server.ListenAndServe()
-	if err != nil {
-		fmt.Println(err)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatal(err)
 	}
-
 }
